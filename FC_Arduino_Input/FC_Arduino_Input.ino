@@ -1,5 +1,5 @@
-#define INPUT_PIN 9
-#define OUTPUT_PIN 6 
+#define INPUT_PIN 3
+#define OUTPUT_PIN 7 
 #define ONESHOT_ZERO 0  
 #define ONESHOT_MIN 125
 #define ONESHOT_MAX 250
@@ -52,7 +52,7 @@ void loop() {
   int throttle = pulseIn(INPUT_PIN, HIGH);
   int throttle_percentage = map(throttle, 124, 250, 0, 100);
   Serial.print("INPUT:");
-  Serial.println(throttle_percentage);
+  Serial.println(throttle);
 
   // Write the same signal to the output pin
   pulseOut(OUTPUT_PIN, throttle);
