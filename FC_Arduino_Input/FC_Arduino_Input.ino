@@ -1,8 +1,9 @@
 #define INPUT_PIN 3
 #define OUTPUT_PIN 7 
-#define ONESHOT_ZERO 0  
-#define ONESHOT_MIN 125
+#define ONESHOT_ZERO 125  
+#define ONESHOT_MIN 127
 #define ONESHOT_MAX 250
+#define ONESHOT_FREQ 4000
 
 void setup() {
   
@@ -12,7 +13,7 @@ void setup() {
   Serial.println("------------");
 
   // Set up ONESHOT pins for ESCs
-  pinMode(OUTPUT_PIN, OUTPUT);
+  analogWriteFrequency(OUTPUT_PIN, ONESHOT_FREQ);
 
   // Set up input PIN from FC
   pinMode(INPUT_PIN, INPUT);
@@ -22,26 +23,26 @@ void setup() {
 
   // ONESHOT_ZERO = "no signal", 4 seconds
   Serial.println("Calibrating: zero signal...");
-  pulseOut(OUTPUT_PIN, ONESHOT_ZERO);
+  analogWrite(OUTPUT_PIN, map(ONESHOT_ZERO, 125, 250, 0, 255));
   delay(4000);
 
   // Raise the "stick" from zero to ONESHOT_MAX
   Serial.println("Calibrating: raising stick...");
   for (byte i = ONESHOT_MIN; i <= ONESHOT_MAX; i++){
-    pulseOut(OUTPUT_PIN, i);
+    analogWrite(OUTPUT_PIN, map(i, 125, 250, 0, 255));
     delay(10);
   }
 
   // Lower the "stick" back to min
   Serial.println("Calibrating: lowering stick...");
   for (byte i = ONESHOT_MAX; i >= ONESHOT_MIN; i--){
-    pulseOut(OUTPUT_PIN, i);
+    analogWrite(OUTPUT_PIN, map(i, 125, 250, 0, 255));
     delay(10);
   }
 
   // Hold "min" for 10 seconds
   Serial.println("Calibrating: minimum value...");
-  pulseOut(OUTPUT_PIN, ONESHOT_MIN);
+  analogWrite(OUTPUT_PIN, map(ONESHOT_MIN, 125, 250, 0, 255));
   delay(10000);
   Serial.println("ESC calibration complete.\n");
     
@@ -50,20 +51,11 @@ void setup() {
 void loop() {
   // Read the digital signal from the input pin
   int throttle = pulseIn(INPUT_PIN, HIGH);
-  int throttle_percentage = map(throttle, 124, 250, 0, 100);
+  int dutyCycle = map(throttle, 125, 250, 0, 255);
   Serial.print("INPUT:");
   Serial.println(throttle);
 
   // Write the same signal to the output pin
-  pulseOut(OUTPUT_PIN, throttle);
-  Serial.print("OUTPUT:");
-  Serial.println(OUTPUT_PIN);
-}
-
-void pulseOut(int pin, int us)
-{
-    digitalWrite(pin, HIGH);
-    us = max(us - 5, 1);
-    delayMicroseconds(us);
-    digitalWrite(pin, LOW);
+  analogWriteFrequency(OUTPUT_PIN, ONESHOT_FREQ);
+  analogWrite(OUTPUT_PIN, dutyCycle);
 }
