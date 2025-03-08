@@ -1,61 +1,59 @@
-#define INPUT_PIN 3
-#define OUTPUT_PIN 7 
-#define ONESHOT_ZERO 125  
-#define ONESHOT_MIN 127
-#define ONESHOT_MAX 250
-#define ONESHOT_FREQ 4000
+#define INPUT_PIN A1
+#define OUTPUT_PIN A6
+#define ONESHOT_ZERO 125 
+#define ONESHOT_MIN 127    
+#define ONESHOT_MAX 250    
 
 void setup() {
-  
-  // Set up the serial output
-  Serial.begin(115200); 
-  Serial.println("Initializing");
-  Serial.println("------------");
+  Serial.begin(115200);
+  Serial.println("Initializing...");
 
-  // Set up ONESHOT pins for ESCs
-  analogWriteFrequency(OUTPUT_PIN, ONESHOT_FREQ);
-
-  // Set up input PIN from FC
+  pinMode(OUTPUT_PIN, OUTPUT);
   pinMode(INPUT_PIN, INPUT);
-  
-  // ESC Calibration Sequence
-  Serial.println("Calibrating ESC...");
 
-  // ONESHOT_ZERO = "no signal", 4 seconds
-  Serial.println("Calibrating: zero signal...");
-  analogWrite(OUTPUT_PIN, map(ONESHOT_ZERO, 125, 250, 0, 255));
+  Serial.println("ESC Calibration...");
+
+  // Send idle (zero throttle)
+  sendOneShotPulse(ONESHOT_ZERO);
   delay(4000);
 
-  // Raise the "stick" from zero to ONESHOT_MAX
-  Serial.println("Calibrating: raising stick...");
-  for (byte i = ONESHOT_MIN; i <= ONESHOT_MAX; i++){
-    analogWrite(OUTPUT_PIN, map(i, 125, 250, 0, 255));
+  // Ramp-up
+  for (int i = ONESHOT_MIN; i <= ONESHOT_MAX; i++) {
+    sendOneShotPulse(i);
     delay(10);
   }
 
-  // Lower the "stick" back to min
-  Serial.println("Calibrating: lowering stick...");
-  for (byte i = ONESHOT_MAX; i >= ONESHOT_MIN; i--){
-    analogWrite(OUTPUT_PIN, map(i, 125, 250, 0, 255));
+  // Ramp-down
+  for (int i = ONESHOT_MAX; i >= ONESHOT_MIN; i--) {
+    sendOneShotPulse(i);
     delay(10);
   }
 
-  // Hold "min" for 10 seconds
-  Serial.println("Calibrating: minimum value...");
-  analogWrite(OUTPUT_PIN, map(ONESHOT_MIN, 125, 250, 0, 255));
+  // Hold min
+  sendOneShotPulse(ONESHOT_MIN);
   delay(10000);
-  Serial.println("ESC calibration complete.\n");
-    
-}  // END setup()
+  Serial.println("ESC calibration complete.");
+}
+
+// Function to generate precise OneShot125 pulses
+void sendOneShotPulse(int pulseWidth) {
+  digitalWrite(OUTPUT_PIN, HIGH);
+  delayMicroseconds(pulseWidth);
+  digitalWrite(OUTPUT_PIN, LOW);
+}
+
 
 void loop() {
-  // Read the digital signal from the input pin
-  int throttle = pulseIn(INPUT_PIN, HIGH);
-  int dutyCycle = map(throttle, 125, 250, 0, 255);
-  Serial.print("INPUT:");
+  int throttle = pulseIn(INPUT_PIN, HIGH, 50000); // Read pulse width in µs
+
+  Serial.print("INPUT: ");
   Serial.println(throttle);
 
-  // Write the same signal to the output pin
-  analogWriteFrequency(OUTPUT_PIN, ONESHOT_FREQ);
-  analogWrite(OUTPUT_PIN, dutyCycle);
+  // Ensure throttle is in range and send correct pulse
+  if (throttle < ONESHOT_MIN) {
+    sendOneShotPulse(ONESHOT_ZERO);
+  } else {
+    sendOneShotPulse(throttle);
+  }
 }
+
