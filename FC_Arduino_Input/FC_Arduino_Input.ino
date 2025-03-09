@@ -57,3 +57,30 @@ void loop() {
   }
 }
 
+/*******************************************************
+/* Function: convertRawAngleToRadians
+/* In: angle data from AMS_5600::getRawAngle
+/* Out: human readable radians as float
+/* Description: takes the raw angle and calculates
+/* float value in radians.
+/*******************************************************/
+float convertRawAngleToRadians(word newAngle){
+  // Raw angle is 0-4095 = 0.001533981 of a radian
+  float retVal = newAngle * 0.001533981;
+  return retVal;
+}
+
+/*******************************************************
+/* Function: convertRawAngleToDegrees
+/* In: angle data from AMS_5600::getRawAngle
+/* Out: human readable degrees as float
+/* Description: takes the raw angle and calculates
+/* float value in degrees.
+/*******************************************************/
+float convertRawAngleToDegrees(word newAngle)
+{
+  // Raw data reports 0 - 4095 segments, which is 0.087890625 of a degree
+  float retVal = newAngle * 0.087890625;
+  return retVal;
+}
+
