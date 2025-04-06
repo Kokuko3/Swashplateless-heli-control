@@ -8,7 +8,15 @@
 #define OUTPUT_PIN D6
 #define ONESHOT_MIN 125    
 #define ONESHOT_MAX 250  
-AMS_5600 ams5600;  
+AMS_5600 ams5600;
+float pitch;            // 0.0 to 1.0
+float phase;            // 0.0 to TWO_PI
+double angle;           // Current rotor angle
+double adjustedAngle;           // Current rotor angle
+float roll;
+byte throttle;
+byte power;
+byte Duty;  
 
 void setup() {
   delay(10000);
@@ -27,14 +35,16 @@ void setup() {
   Serial.println("ESC Calibration...");
 
   Serial.println("Sending MAX throttle...");
-  sendOneShotPulse(ONESHOT_MAX);
-  delay(4000);  // Wait for ESC to detect max throttle
+  sendOneShotPulse(250);
+  delay(8000);  // Wait for ESC to detect max throttle
 
   Serial.println("Sending MIN throttle...");
-  sendOneShotPulse(ONESHOT_MIN);
-  delay(4000);  // Wait for ESC to confirm calibration
+  sendOneShotPulse(125);
+  delay(8000);  // Wait for ESC to confirm calibration
 
   Serial.println("ESC calibration complete.");
+  pitch = 0.0f;
+  phase = 2.75f;
 }
 
 /*******************************************************
@@ -99,27 +109,24 @@ void ams5600setup(){
 
 
 void loop() {
-  int throttle = pulseIn(THROTTLE_IN_PIN, HIGH, 50000); // Read pulse width in µs
-  float pitch = pulseIn(PITCH_IN_PIN, HIGH, 50000); // Read pulse width in µs
-  float roll = pulseIn(ROLL_IN_PIN, HIGH, 50000); // Read pulse width in µs
-  throttle = map(throttle, 125, 250, 0, 100);
+  throttle = pulseIn(THROTTLE_IN_PIN, HIGH, 50000); // Read pulse width in µs
+  float throttle_scale = map(throttle, ONESHOT_MIN, ONESHOT_MAX, 1, 100);
+
+  pitch = pulseIn(PITCH_IN_PIN, HIGH, 50000); // Read pulse width in µs
+  // roll = pulseIn(ROLL_IN_PIN, HIGH, 50000); // Read pulse width in µs
+
   pitch = 2*(pitch/2000)-1;
-  roll = 2*(roll/2000)-1;
-  float motorRads = convertRawAngleToRadians(ams5600.getRawAngle());
-  int Duty = throttle + (pitch * cos(motorRads) * throttle) + (roll * sin(motorRads) * throttle);
-  Duty = map(Duty, 0, 100, 125, 250);
+  // roll = 2*(roll/2000)-1;
 
+  angle = convertRawAngleToRadians(ams5600.getRawAngle());
+  adjustedAngle = angle + phase;
+  if (adjustedAngle > TWO_PI){
+    adjustedAngle -= TWO_PI;
+  }
 
-  // Serial.println("----THROTTLE----PITCH----ROLL----Motor Radians-----");
-  // Serial.print("----   ");
-  // Serial.print(throttle);
-  // Serial.print("    ----  ");
-  // Serial.print(pitch);
-  // Serial.print("  ---- ");
-  // Serial.print(roll);
-  // Serial.print("   ---- ");
-  // Serial.print(String(convertRawAngleToRadians(ams5600.getRawAngle()),DEC));
-  // Serial.println(" -----");
+  power = throttle_scale + (pitch * sin(adjustedAngle) * throttle_scale);
+  Duty = map(power, 0, 100, ONESHOT_MIN, ONESHOT_MAX);
+  // Duty = throttle + (pitch * cos(motorRads) * throttle) + (roll * sin(motorRads) * throttle);
 
   Serial.println(Duty);
 
