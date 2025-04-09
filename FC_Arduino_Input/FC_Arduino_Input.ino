@@ -125,15 +125,15 @@ void loop() {
   }
 
   power = throttle_scale + (pitch * sin(adjustedAngle) * throttle_scale);
-  Duty = map(power, 0, 100, ONESHOT_MIN, ONESHOT_MAX);
+  Duty = map(power, 0, 200, ONESHOT_MIN, ONESHOT_MAX);
   // Duty = throttle + (pitch * cos(motorRads) * throttle) + (roll * sin(motorRads) * throttle);
 
-  Serial.println(Duty);
+  Serial.println("Angle: " + String(angle) + "  Throttle: " + String(throttle) + "  Pitch: " + String(pitch) + "  Power: " + String(power) + "  Duty: " + String(Duty));
 
-  if (throttle < 127) {
-    sendOneShotPulse(0);
-  } else {
-    sendOneShotPulse(Duty);
-  }
+  // if (throttle < 127) {
+  //   sendOneShotPulse(0);
+  // } else {
+  //   sendOneShotPulse(Duty);
+  // }
 }
 
