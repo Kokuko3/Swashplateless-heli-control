@@ -5,7 +5,7 @@
 #define THROTTLE_IN_PIN A0
 #define PITCH_IN_PIN A1
 #define ROLL_IN_PIN A2
-#define OUTPUT_PIN D6
+#define OUTPUT_PIN D4
 #define ONESHOT_MIN 125    
 #define ONESHOT_MAX 250  
 AMS_5600 ams5600;
@@ -16,7 +16,17 @@ double adjustedAngle;           // Current rotor angle
 float roll;
 byte throttle;
 byte power;
-byte Duty;  
+byte Duty;
+double lastAngle;       // for RPM tracking - see below
+int revolutions;        // for RPM tracking
+double rpms;
+#define REPORT_INTERVAL 1000
+unsigned long lastReport = 0; // Time (in ms) of last report
+unsigned long currentTime;    // Current time in ms
+unsigned currentReport;       // Number of current report
+// Report RPMs every RPM_INTERVAL reports
+#define RPM_INTERVAL 10
+
 
 void setup() {
   delay(10000);
@@ -115,10 +125,12 @@ void loop() {
   pitch = pulseIn(PITCH_IN_PIN, HIGH, 50000); // Read pulse width in µs
   // roll = pulseIn(ROLL_IN_PIN, HIGH, 50000); // Read pulse width in µs
 
-  pitch = 2*(pitch/2000)-1;
+  // pitch = 2*(pitch/2000)-1;
+  pitch = 0.5;
   // roll = 2*(roll/2000)-1;
 
   angle = convertRawAngleToRadians(ams5600.getRawAngle());
+  if ((lastAngle > angle) && ((angle - lastAngle) < -0.01)) revolutions++;
   adjustedAngle = angle + phase;
   if (adjustedAngle > TWO_PI){
     adjustedAngle -= TWO_PI;
@@ -128,12 +140,25 @@ void loop() {
   Duty = map(power, 0, 200, ONESHOT_MIN, ONESHOT_MAX);
   // Duty = throttle + (pitch * cos(motorRads) * throttle) + (roll * sin(motorRads) * throttle);
 
-  Serial.println("Angle: " + String(angle) + "  Throttle: " + String(throttle) + "  Pitch: " + String(pitch) + "  Power: " + String(power) + "  Duty: " + String(Duty));
+  // Serial.println("Angle: " + String(angle) + "  Throttle: " + String(throttle) + "  Pitch: " + String(pitch) + "  Power: " + String(power) + "  Duty: " + String(Duty));
+  Serial.println(Duty);
+  if (throttle < 127) {
+    sendOneShotPulse(0);
+  } else {
+    sendOneShotPulse(Duty);
+  }
 
-  // if (throttle < 127) {
-  //   sendOneShotPulse(0);
-  // } else {
-  //   sendOneShotPulse(Duty);
-  // }
+  // Report load cell readings every REPORT_INTERVAL ms
+  // Report RPMs every RPM_INTERVAL reports, or (RPM_INTERVAL * REPORT_INTERVAL) ms
+  if (currentTime - lastReport >= REPORT_INTERVAL){
+    if (currentReport % RPM_INTERVAL == 0) {
+      rpms = (double) revolutions * (1000.0 / ((double) REPORT_INTERVAL * (double) RPM_INTERVAL)) * 60;
+      Serial.print("\t" + String(rpms, 2));
+      revolutions = 0;
+    }
+    Serial.println();
+    lastReport = currentTime;
+    currentReport++;
+  }
 }
 
