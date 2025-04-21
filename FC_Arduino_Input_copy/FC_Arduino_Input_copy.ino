@@ -10,10 +10,6 @@
 #define ONESHOT_MIN 125    
 #define ONESHOT_MAX 250 
 
-#define LEDC_CHANNEL 0
-#define LEDC_TIMER_BIT 16  // resolution (2^16 = 65536 steps)
-#define LEDC_BASE_FREQ 4000 // Frequency (can be very low — we use pulse width)
-
 AMS_5600 ams5600;
 
 float pitch = 0.8;         // Static for now
@@ -43,8 +39,6 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(THROTTLE_IN_PIN), throttleISR, CHANGE);
   pinMode(PITCH_IN_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(PITCH_IN_PIN), pitchISR, CHANGE);
-  ledcSetup(LEDC_CHANNEL, LEDC_BASE_FREQ, LEDC_TIMER_BIT);
-  ledcAttachPin(OUTPUT_PIN, LEDC_CHANNEL);
 
   Serial.println("Calibrating: zero signal...");
   sendOneShotPulse(ONESHOT_MIN);
@@ -132,8 +126,9 @@ void pitchISR() {
 }
 
 void sendOneShotPulse(int pulseWidthMicros) {
-  int duty = map(pulseWidthMicros, 0, 1000, 0, 65535); // For 1ms max range
-  ledcWrite(LEDC_CHANNEL, duty);
+  digitalWrite(OUTPUT_PIN, HIGH);
+  delayMicroseconds(pulseWidthMicros);
+  digitalWrite(OUTPUT_PIN, LOW);
 }
 
 float convertRawAngleToRadians(word newAngle) {
@@ -154,4 +149,3 @@ void ams5600setup() {
     }
   }
 }
-
