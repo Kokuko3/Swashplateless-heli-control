@@ -9,7 +9,7 @@
 
 #define PWM_MIN 1000    
 #define PWM_MAX 2000 
-#define LOOP_INTERVAL 2000 // 500 Hz
+#define LOOP_INTERVAL 500 // 2 KHz
 
 AMS_5600 ams5600;
 
