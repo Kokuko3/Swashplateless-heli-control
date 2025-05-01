@@ -13,21 +13,13 @@
 #include <AS5600.h>                 // Magnetic position sensor
 
 // LOCAL PIN DEFINITIONS
-#define THROTTLE_IN_PIN D5
-#define PITCH_IN_PIN D6
-#define ROLL_IN_PIN D7
-#define MAIN_PWM_PIN A7      // ESC for main motor
-
-// PWM Constants for motor control @ 490Hz
-// After empirical testing, it seems the motor is responsive to power levels from 128 to 252
-// after our calibration sequence.  Some online resources say that this ESC will reset when
-// the duty cycle is less than 50%
+#define MAIN_PWM_PIN 9   // ESC for main motor
+#define THROTTLE_IN_PIN 18   // Read throttle from FC
+#define PITCH_IN_PIN 2   // Read pitch from FC
+#define ROLL_IN_PIN 3   // Read roll from FC
 #define PWM_ZERO 64   // Minimum power during calibration: 0 to 255 for analog_write
 #define PWM_MIN 128   // Minimum power during flight: 0 to 255 for analog_write
 #define PWM_MAX 252   // Maximum power during flight: 0 to 255 for analog_write
-
-// All the power calculations are based on a 0 to 100 scale, which is then
-// remapped for the ESC (usually 0 to 255 for analogWrite)
 #define MIN_BASE_POWER 0
 #define MAX_BASE_POWER 100
 
@@ -35,27 +27,39 @@
 
 // Variables for magnet read and motor control
 AMS_5600 ams5600;       // ams5600 is the magnetic angle sensor
-float pitch;            // 0.0 to 1.0
 
 float phase;            // 0.0 to TWO_PI
 double angle;           // Current rotor angle
 double adjustedAngle;   // Rotor angle + phase correction
 byte mainPower;         // Power for the main ESC: 0 to 255
+
+float pitch;
+float roll;
+int Duty;
+volatile int throttle;
+volatile int pitchPulse;
+volatile int rollPulse;
+
 volatile unsigned long throttleRiseTime = 0;
-volatile int throttle = 1000;  // µs
 volatile bool newThrottle = false;
 volatile unsigned long pitchRiseTime = 0;
-volatile int pitchPulse = 1500;
 volatile bool newPitch = false;
-int Duty;
-int baseThrottle = 0;
+volatile unsigned long rollRiseTime = 0;
+volatile bool newRoll = false;
 
 void setup() {
-  
   // Set up the serial output
   Serial.begin(115200);
   Serial.println("Initializing");
   Serial.println("------------");
+
+  // Interrupts for inputs
+  pinMode(THROTTLE_IN_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(THROTTLE_IN_PIN), throttleISR, CHANGE);
+  pinMode(PITCH_IN_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PITCH_IN_PIN), pitchISR, CHANGE);
+  pinMode(ROLL_IN_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(ROLL_IN_PIN), rollISR, CHANGE);
 
   // Set up PWM pins for ESCs
   pinMode(MAIN_PWM_PIN, OUTPUT);
@@ -67,7 +71,7 @@ void setup() {
   calibrateESC();
 
   // Initial settings
-  baseThrottle = 30;
+  throttle = MIN_BASE_POWER;
   pitch = 1.0f;
   phase = 2.75f;    // Based on empirical testing, 3/22/24
     
@@ -76,7 +80,8 @@ void setup() {
 
 
 void calibrateESC() {
-  Serial.println("ESC Calibration Start");
+  // ESC Calibration Sequence
+  Serial.println("Calibrating ESC...");
 
   // PWM_ZERO = "no signal", 4 seconds
   Serial.println("Calibrating: zero signal...");
@@ -97,13 +102,15 @@ void calibrateESC() {
     delay(10);
   }
 
-  // Hold "min" for 4 seconds
+  // Hold "min" for 10 seconds
   Serial.println("Calibrating: minimum value...");
   analogWrite(MAIN_PWM_PIN, PWM_MIN);
-  delay(4000);
+  delay(10000);
   Serial.println("ESC calibration complete.\n");
 
 }
+
+
 
 float convertRawAngleToRadians(word newAngle){
   // Raw angle is 0-4095 = 0.001533981 of a radian
@@ -113,20 +120,84 @@ float convertRawAngleToRadians(word newAngle){
 
 
 
+void throttleISR() {
+  if (digitalRead(THROTTLE_IN_PIN)) {
+    throttleRiseTime = micros();
+  } else {
+    unsigned long fallTime = micros();
+    unsigned int pulse = fallTime - throttleRiseTime;
+    if (pulse >= 1000 && pulse <= 2000) {
+      throttle = pulse;
+      newThrottle = true;
+    }
+  }
+}
+
+
+
+void pitchISR() {
+  if (digitalRead(PITCH_IN_PIN)) {
+    pitchRiseTime = micros();
+  } else {
+    unsigned long fallTime = micros();
+    unsigned int pulse = fallTime - pitchRiseTime;
+    if (pulse >= 1000 && pulse <= 2000) {
+      pitchPulse = pulse;
+      newPitch = true;
+    }
+  }
+}
+
+
+
+void rollISR() {
+  if (digitalRead(ROLL_IN_PIN)) {
+    rollRiseTime = micros();
+  } else {
+    unsigned long fallTime = micros();
+    unsigned int pulse = fallTime - rollRiseTime;
+    if (pulse >= 1000 && pulse <= 2000) {
+      rollPulse = pulse;
+      newRoll = true;
+    }
+  }
+}
+
+
+
 void loop() {
 
-    angle = convertRawAngleToRadians(ams5600.getRawAngle());
-    adjustedAngle = angle + phase;
-    if (adjustedAngle > TWO_PI){
-      adjustedAngle -= TWO_PI;
-    }
+  noInterrupts();
+  long localThrottle = throttle;
+  newThrottle = false;
+  int localPitch = pitchPulse;
+  newPitch = false;
+  int localRoll = rollPulse;
+  newRoll = false;
+  interrupts();
+  
+  pitch = constrain((localPitch - 1000.0) / 1000.0, 0.0, 1.0);
+  roll = constrain((localRoll - 1000.0) / 1000.0, -1.0, 1.0);
+  long newThrottle = map(localThrottle, 1000, 2000, 0, 100);
 
-    // Control law for main motor
-    mainPower = baseThrottle + (pitch * sin(adjustedAngle) * baseThrottle);
-    Duty = map(mainPower, 0, 100, PWM_MIN, PWM_MAX);
+  Serial.print("Throttle: ");
+  Serial.print(newThrottle);
+  Serial.print("  |  Pitch: ");
+  Serial.print(pitch);
+  Serial.print("  |  Roll: ");
+  Serial.println(roll);
+
+  angle = convertRawAngleToRadians(ams5600.getRawAngle());
+  adjustedAngle = angle + phase;
+  if (adjustedAngle > TWO_PI){
+    adjustedAngle -= TWO_PI;
+  }
+
+  // Control law for main motor
+  mainPower = newThrottle + (pitch * sin(adjustedAngle) * newThrottle);
+  Duty = map(mainPower, 0, 100, PWM_MIN, PWM_MAX);
     
-    // Send PWM signal to ESC
-    analogWrite(MAIN_PWM_PIN, Duty);
-    Serial.println(Duty);
+  // Send PWM signal to ESC
+  analogWrite(MAIN_PWM_PIN, Duty);
   
 }
