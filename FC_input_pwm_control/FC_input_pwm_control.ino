@@ -2,8 +2,9 @@
  * Rotor control logic.
  * @author Michael Raymer, Wright State University
  * @author Kyle Raymer, Yellow Springs High School
- * @version 1.1
- * @since 3/17/2024
+ * @author Mason McDaniel, Wright State University
+ * @version 1.2
+ * @since 4/25/2025
  * @see - too many to mention.  Almost all of this code is based on
  *        Arduino library documention, examples and other sources.
  **/
